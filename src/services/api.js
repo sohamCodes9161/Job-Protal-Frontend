@@ -1,5 +1,8 @@
 import axios from "axios";
 
+/* ================================
+   BASE API INSTANCE
+================================ */
 const API = axios.create({
   baseURL: "https://job-portal-backend-9mmi.onrender.com/api",
 });
@@ -21,13 +24,14 @@ API.interceptors.request.use((config) => {
 });
 
 /* ================================
-   RESPONSE INTERCEPTOR (REFRESH FLOW)
+   RESPONSE INTERCEPTOR (REFRESH TOKEN FLOW)
 ================================ */
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
+    // 🔥 handle expired token
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
@@ -44,26 +48,25 @@ API.interceptors.response.use(
           return Promise.reject(error);
         }
 
-        const res = await axios.post(
-          "http://localhost:5000/api/users/refresh",
-          { refreshToken }
-        );
+        // ✅ FIXED: using API instance (NO localhost)
+        const res = await API.post("/users/refresh", {
+          refreshToken,
+        });
 
-        // IMPORTANT: your backend returns "token"
         const newToken = res.data.token;
 
         if (!newToken) {
           throw new Error("No token received from refresh");
         }
 
-        // save token
+        // 🔹 Save new token
         localStorage.setItem("token", newToken);
 
-        // update axios default header
+        // 🔹 Update default headers
         API.defaults.headers.common["Authorization"] =
           `Bearer ${newToken}`;
 
-        // force update retry request
+        // 🔹 Retry original request
         originalRequest.headers = {
           ...originalRequest.headers,
           Authorization: `Bearer ${newToken}`,
